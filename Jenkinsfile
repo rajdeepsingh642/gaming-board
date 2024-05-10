@@ -23,6 +23,12 @@ pipeline {
             }
         }
 
+
+
+
+
+
+
         stage('tomcat') {
             steps {
             sshagent(['tomcat-server']) { 
