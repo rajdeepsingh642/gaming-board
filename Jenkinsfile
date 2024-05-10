@@ -65,7 +65,7 @@ pipeline {
             steps {
                 script{
                    withDockerRegistry(credentialsId: 'docker-hub') {
-                    sh "docker build -t rajdeepsingh642/gaming-app:$BUILD_ID ."
+                    sh "docker build -t rajdeepsingh642/gaming-app:latest ."
                     
                        }
                 }
@@ -74,14 +74,14 @@ pipeline {
         }
             stage('Docker image scan') {
             steps {
-             sh "trivy image  --format table -o trivy-fs-report.html  rajdeepsingh642/gaming-app:$BUILD_ID ."
+             sh "trivy image  --format table -o trivy-fs-report.html  rajdeepsingh642/gaming-app:latest ."
             }
         }
-             stage('build docker image push') {
+             stage('Docker image push') {
             steps {
                 script{
                    withDockerRegistry(credentialsId: 'docker-hub') {
-                    sh "docker push rajdeepsingh642/gaming-app:$BUILD_ID"
+                    sh "docker push rajdeepsingh642/gaming-app:latest"
                     
                        }
                 }
@@ -90,19 +90,22 @@ pipeline {
         }
          
           
-            stage('build stage') {
+            stage('Deploy to k8s') {
             steps {
-             sh "mvn package"
+                withKubeConfig(caCertificate: '', clusterName: ' kubernetes', contextName: '', credentialsId: 'k8s-token', namespace: 'webapps', restrictKubeConfigAccess: false, serverUrl: 'https://192.168.177.132:6443') {
+                sh "kubectl apply -f deployment-service.yaml"
+               }
+           
             }
         }
-            stage('build stage') {
+            stage('veryfy the deployment') {
             steps {
-             sh "mvn package"
-            }
-        }
-             stage('build stage') {
-            steps {
-             sh "mvn package"
+                withKubeConfig(caCertificate: '', clusterName: ' kubernetes', contextName: '', credentialsId: 'k8s-token', namespace: 'webapps', restrictKubeConfigAccess: false, serverUrl: 'https://192.168.177.132:6443') {
+                sh "kubectl get pod -n webapps"
+                sh "kubectl get  svc -n webapps"
+            
+               }
+           
             }
         }
     
@@ -110,3 +113,4 @@ pipeline {
   
        
    }
+
