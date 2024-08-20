@@ -1,8 +1,8 @@
 pipeline {
     agent any
     tools{
-        jdk "jdk17"
-        maven "maven3"
+        jdk "java"
+        maven "maven"
     }
       environment {
           SCANNER_HOME= tool 'sonar-scanner'
@@ -23,94 +23,93 @@ pipeline {
             steps {
              sh "mvn test"
             }
-        }
-
-
+   
+       }
          
         stage('File system scan') {
-            steps {
+         steps {
              sh "trivy fs --format table -o trivy-fs-report.html ."
             }
         }
-
-        
-        stage('sonarqube analysis') {
+         stage('sonarqube analysis') {
             steps {
-             withSonarQubeEnv('sonar') {
-                 sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=gaming-demo -Dsonar.projectKey=gaming-demo \
-                        -Dsonar.java.binaries=.'''
-                    } 
+                withSonarQubeEnv('sonar') {
+                     sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=gaming-demo -Dsonar.projectKey=gaming-demo \
+                        -Dsonar.java.binaries=. '''
+                      } 
+    
+                    }
+          }
+          stage("Quality Gate") {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                     Parameter indicates whether to set pipeline to UNSTABLE if Quality Gate fails
+                     true = set pipeline to UNSTABLE, false = don't
+                    waitForQualityGate abortPipeline: true
+                }
             }
         }
-         
-         stage('Quality Gate') {
-            steps {
-               waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
-            }
-        }
-         stage('build stage') {
+           stage('build stage') {
             steps {
              sh "mvn package"
+               }
             }
-        }
-         stage('publish artifact to nexus') {
+           stage('publish artifact to nexus') {
             steps {
-               withMaven(globalMavenSettingsConfig: 'globalset', jdk: 'jkd17', maven: 'maven3', mavenSettingsConfig: '', traceability: true) {
-                sh "mvn deploy"
-                   } 
-             
+                withMaven(globalMavenSettingsConfig: 'global-settings', jdk: 'java', maven: 'maven', mavenSettingsConfig: '', traceability: true) {
+                 sh "mvn deploy"
+                     }
+        
+                 }
+     
             }
-        }
-           stage('build docker image and tag') {
+            
+            stage('build docker image and tag') {
             steps {
                 script{
-                   withDockerRegistry(credentialsId: 'docker-hub') {
-                    sh "docker build -t rajdeepsingh642/gaming-app:latest ."
-                    
+                    withDockerRegistry(credentialsId: 'docker-hub') {
+                      sh "docker build -t rajdeepsingh642/game-app:latest ."
                        }
-                }
+       
+                  }
+              }
+            } 
              
-            }
-        }
             stage('Docker image scan') {
-            steps {
-             sh "trivy image  --format table -o trivy-fs-report.html  rajdeepsingh642/gaming-app:latest ."
+             steps {
+             sh "trivy image  --format table -o trivy-fs-report.html  rajdeepsingh642/game-app:latest"
             }
         }
-             stage('Docker image push') {
-            steps {
+            stage('Docker image push') {
+             steps {
                 script{
                    withDockerRegistry(credentialsId: 'docker-hub') {
-                    sh "docker push rajdeepsingh642/gaming-app:latest"
+                    sh "docker push rajdeepsingh642/game-app:latest"
                     
-                       }
-                }
+                        }
+                   }
              
+             }
             }
-        }
-         
-          
+             
             stage('Deploy to k8s') {
             steps {
-                withKubeConfig(caCertificate: '', clusterName: ' kubernetes', contextName: '', credentialsId: 'k8s-token', namespace: 'webapps', restrictKubeConfigAccess: false, serverUrl: 'https://192.168.177.132:6443') {
-                sh "kubectl apply -f deployment-service.yaml"
-               }
-           
+        withKubeConfig(caCertificate: '', clusterName: 'kubernetes', contextName: '', credentialsId: 'k8s-crds', namespace: 'webapps', restrictKubeConfigAccess: false, serverUrl: 'https://192.168.123.131:6443') {
+             sh "kubectl apply -f deployment-service.yaml"
+             }
+             }
             }
-        }
-            stage('veryfy the deployment') {
+             
+             stage('veryfy the deployment') {
             steps {
-                withKubeConfig(caCertificate: '', clusterName: ' kubernetes', contextName: '', credentialsId: 'k8s-token', namespace: 'webapps', restrictKubeConfigAccess: false, serverUrl: 'https://192.168.177.132:6443') {
-                sh "kubectl get pod -n webapps"
+                withKubeConfig(caCertificate: '', clusterName: 'kubernetes', contextName: '', credentialsId: 'k8s-crds', namespace: 'webapps', restrictKubeConfigAccess: false, serverUrl: 'https://192.168.123.131:6443') {
+                      sh "kubectl get pod -n webapps"
                 sh "kubectl get  svc -n webapps"
-            
-               }
-           
-            }
-        }
-    
-     } 
-  
-       
-   }
+                   }
+                
+                }
+             }
+      
 
+     }
+}
